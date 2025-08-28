@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Система управления персоналом</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
+        th { background-color: #f5f5f5; cursor: pointer; }
+        th:hover { background-color: #e0e0e0; }
+        .search-form { margin-bottom: 20px; }
+        .search-input { padding: 8px; width: 300px; }
+        .btn { padding: 8px 16px; background-color: #007bff; color: white; border: none; cursor: pointer; }
+        .btn:hover { background-color: #0056b3; }
+        .error { color: red; margin: 10px 0; }
+        .success { color: green; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Каталог сотрудников</h1>
+    
+    <!-- Форма поиска -->
+    <form class="search-form" method="GET">
+        <input type="text" name="search" class="search-input" 
+               placeholder="Поиск по ФИО..." value="{{ search_query }}">
+        <button type="submit" class="btn">Поиск</button>
+        <a href="{{ url_for('employees_list') }}" class="btn">Сброс</a>
+    </form>
+
+    <!-- Сообщения -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Таблица сотрудников -->
+    <table>
+        <thead>
+            <tr>
+                <th data-sort="id">ID ↗</th>
+                <th data-sort="full_name">ФИО ↗</th>
+                <th data-sort="position">Должность ↗</th>
+                <th data-sort="hire_date">Дата приема ↗</th>
+                <th data-sort="salary">Зарплата ↗</th>
+                <th>Начальник</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for employee in employees %}
+            <tr>
+                <td>{{ employee.id }}</td>
+                <td>{{ employee.full_name }}</td>
+                <td>{{ employee.position }}</td>
+                <td>{{ employee.hire_date.strftime('%Y-%m-%d') }}</td>
+                <td>{{ "%.2f"|format(employee.salary) }}</td>
+                <td>
+                    {% if employee.manager %}
+                        {{ employee.manager.full_name }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>
+                    <button class="btn-change-manager" data-employee-id="{{ employee.id }}">
+                        Сменить начальника
+                    </button>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7">Сотрудники не найдены</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        // Функция сортировки таблицы
+        function sortTable(field) {
+            const url = new URL(window.location.href);
+            const currentSort = url.searchParams.get('sort');
+            const currentOrder = url.searchParams.get('order');
+            
+            let newOrder = 'asc';
+            if (currentSort === field) {
+                newOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+            }
+            
+            url.searchParams.set('sort', field);
+            url.searchParams.set('order', newOrder);
+            window.location.href = url.toString();
+        }
+
+        // Функция изменения начальника
+        function changeManager(employeeId) {
+            const newManagerId = prompt('Введите ID нового начальника:');
+            if (newManagerId && !isNaN(newManagerId)) {
+                fetch(`/api/employees/${employeeId}/manager`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ manager_id: parseInt(newManagerId) })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('Ошибка: ' + data.error);
+                    } else {
+                        alert('Начальник успешно изменен!');
+                        location.reload();
+                    }
+                })
+                .catch(error => {
+                    alert('Ошибка: ' + error);
+                });
+            }
+        }
+
+        // Обработчики событий после загрузки DOM
+        document.addEventListener('DOMContentLoaded', function() {
+            // Обработчики кликов для сортировки
+            const sortHeaders = document.querySelectorAll('th[data-sort]');
+            sortHeaders.forEach(header => {
+                header.addEventListener('click', function() {
+                    const field = this.getAttribute('data-sort');
+                    sortTable(field);
+                });
+            });
+
+            // Обработчики кликов для кнопок смены начальника
+            const changeManagerButtons = document.querySelectorAll('.btn-change-manager');
+            changeManagerButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const employeeId = this.getAttribute('data-employee-id');
+                    changeManager(employeeId);
+                });
+            });
+        });
+    </script>
+</body>
+</html>
